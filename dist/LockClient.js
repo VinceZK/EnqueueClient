@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 Object.defineProperty(exports, "__esModule", {
     value: true
@@ -11,7 +11,13 @@ var net = require('net');
 var lockUUID = 1;
 var isNodeJS = new Function("try {return this===global;}catch(e){return false;}");
 var isNode = isNodeJS();
+var host = "127.0.0.1";
+var port = "3721";
 
+function setEnqueueServerConnection(host_, port_) {
+    host = host_;
+    port = port_;
+}
 function lock(elementaryLock, callback) {
     var copyElementaryLock = Object.assign({}, elementaryLock);
     copyElementaryLock['uuid'] = _getLockUUID();
@@ -51,13 +57,36 @@ function promote(lockUUID, callback) {
 
 function getLocksBy(lockName, lockOwner, callback) {
     var req = { OP: '4', lockName: lockName, lockOwner: lockOwner };
-    _requestEnqueueServer(req, function (err, res) {
-        if (err) callback('3', err);else callback('0', res);
+    var client = net.createConnection(port, host, function () {
+        client.write(JSON.stringify(req));
+        var totalRes = Buffer.alloc(0);
+        var currentLength = 0;
+        var totalLength = 0;
+        client.on('data', function (res) {
+            var partLength = res.length;
+            var partBuffer = res;
+            if (totalLength === 0) {
+                totalLength = res.readUInt32LE(0);
+                partLength = partLength - 4;
+                partBuffer = Buffer.alloc(partLength);
+                res.copy(partBuffer, 0, 4);
+            }
+            currentLength = totalRes.length + partLength;
+            totalRes = Buffer.concat([totalRes, partBuffer], currentLength);
+            if (currentLength === totalLength) {
+                client.end();
+                callback('0', JSON.parse(totalRes));
+            }
+        });
+    });
+
+    client.on('error', function (err) {
+        callback('3', err);
     });
 }
 
 function _requestEnqueueServer(req, callback) {
-    var client = net.createConnection(3721, "127.0.0.1", function () {
+    var client = net.createConnection(port, host, function () {
         client.write(JSON.stringify(req));
         client.on('data', function (res) {
             client.end();
@@ -89,3 +118,4 @@ exports.lock = lock;
 exports.unlock = unlock;
 exports.promote = promote;
 exports.getLocksBy = getLocksBy;
+exports.setEnqueueServerConnection = setEnqueueServerConnection;
