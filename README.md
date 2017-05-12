@@ -1,2 +1,3 @@
 # enqueue-client
-Node Enqueue Client
+The javascript client of enqueue server. 
+For details see [enqueue server](https://www.npmjs.com/package/enqueue-server).
